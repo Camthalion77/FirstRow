@@ -14,7 +14,8 @@ enum FirstRowMain {
             let delegate = AppDelegate()
             application.delegate = delegate
             withExtendedLifetime(delegate) {
-                application.run()
+                // XCTest installs its hosted-test bootstrap at the Cocoa entry point.
+                _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
             }
         #elseif canImport(UIKit)
             UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(IOSAppDelegate.self))

@@ -28,6 +28,9 @@
 
         @MainActor
         func applicationDidFinishLaunching(_: Notification) {
+            // Hosted unit tests need the application module, not the full-screen renderer
+            // and hardware input services. UI tests launch a separate normal app process.
+            guard NSClassFromString("XCTestCase") == nil else { return }
             let controller = FirstRowAppController()
             appController = controller
             let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
@@ -64,7 +67,7 @@
         }
 
         func applicationDidBecomeActive(_: Notification) {
-            guard !FirstRowHarness.isActive else { return }
+            guard appController != nil, !FirstRowHarness.isActive else { return }
             AppleRemoteInput.shared.start()
             SiriRemoteInput.shared.start()
             // Refocus the window unless a First Row panel, like the folder picker, is in front.

@@ -19,7 +19,6 @@ final class firstRowUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() {
         let app = XCUIApplication()
-        app.launchEnvironment["FIRSTROW_HARNESS"] = "1"
         defer { app.terminate() }
         app.launch()
 

@@ -89,8 +89,6 @@
 		7A73DEDA2F5776A20021C281 /* default.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DE5E2F5776A20021C281 /* default.mp3 */; };
 		7A73DEDB2F5776A20021C281 /* 200463981-1.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DE4F2F5776A20021C281 /* 200463981-1.jpg */; };
 		7A73DEDF2F5777260021C281 /* firstrowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A73DE822F5776A20021C281 /* firstrowTests.swift */; };
-		7A73DEE02F5778340021C281 /* First RowTests.xctest in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DEDD2F5777110021C281 /* First RowTests.xctest */; };
-		7A73DEE12F5778380021C281 /* First RowUITests.xctest in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DEDE2F5777110021C281 /* First RowUITests.xctest */; };
 		AA000002AAAAAAAAAAAA0001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAAAAAAAAAA0001 /* AppDelegate.swift */; };
 		AA000002AAAAAAAAAAAA0002 /* ArrowAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAAAAAAAAAA0002 /* ArrowAppearance.swift */; };
 		AA000002AAAAAAAAAAAA0005 /* IOSAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAAAAAAAAAA0005 /* IOSAppDelegate.swift */; };
@@ -900,7 +898,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7A73DEE02F5778340021C281 /* First RowTests.xctest in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -908,7 +905,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7A73DEE12F5778380021C281 /* First RowUITests.xctest in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -14,4 +14,12 @@ The credential-free `firstrowTests/PlexLibraryTests.swift` suite is included in 
 
 On Linux, run `swift test -j 4` and `swift build -c debug --product FirstRow -j 4` with the portable dependencies described in `Portable/README.md`.
 
-The implementation was validated with 10 passing Linux tests and a successful Linux debug build. A local HTTP Plex fixture also exercised Movies previews, TV Shows → show → season → episode, and Classic/Modern rendering using the offscreen keyboard harness. No personal Plex credentials were used. Actual network media playback, physical remote input, and Apple platform compilation were not validated here. The existing Xcode test suite and macOS build require macOS with Xcode; they have not run in this Linux environment.
+Initial local validation used 10 passing Linux tests and a successful Linux debug build. A local HTTP Plex fixture also exercised Movies previews, TV Shows → show → season → episode, and Classic/Modern rendering using the offscreen keyboard harness. No personal Plex credentials were used. Actual network media playback and physical remote input were not validated locally. This workspace is Linux; Apple compilation and Xcode test execution use the Intel macOS CI described below.
+
+## Intel macOS CI
+
+`.github/workflows/macos-intel.yml` builds pull requests and supports manual dispatch. It uses GitHub's `macos-15-intel` runner with Xcode 26.2 (macOS Tahoe 26.2 SDK), explicitly targets `x86_64`, and sets a macOS 15.2 minimum to match the existing Xcode test host. The shared `First Row` scheme includes both unit and UI test targets; the unit target includes the Plex fixtures.
+
+After tests pass, CI builds the Release application, verifies that its executable contains only Intel code, checks its ad-hoc signature, and packages `First Row.app` with `ditto` to preserve bundle metadata. Download `FirstRow-macOS-x86_64` from the workflow's artifacts for the ZIP and SHA-256 checksum. A separate diagnostics artifact retains Xcode logs and the `.xcresult` bundle, including on failures.
+
+This is an ad-hoc signed CI build, without Developer ID signing or notarization. It uses the existing optional media-engine embedding behavior; no media engine is built by this workflow. Tests run on the runner's macOS 15 system, so building with the Tahoe SDK does not establish runtime validation on macOS Tahoe itself. The workflow does not create a GitHub Release or merge pull requests.

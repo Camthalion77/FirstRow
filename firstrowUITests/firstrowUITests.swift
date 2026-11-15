@@ -25,6 +25,8 @@ final class firstRowUITests: XCTestCase {
     func testExample() {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
+        app.launchEnvironment["FIRSTROW_HARNESS"] = "1"
+        defer { app.terminate() }
         app.launch()
 
         // Use XCTAssert and related functions to verify your tests produce the correct results.
@@ -34,8 +36,11 @@ final class firstRowUITests: XCTestCase {
     func testLaunchPerformance() {
         if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 7.0, *) {
             // This measures how long it takes to launch your application.
+            let app = XCUIApplication()
+            app.launchEnvironment["FIRSTROW_HARNESS"] = "1"
+            defer { app.terminate() }
             measure(metrics: [XCTApplicationLaunchMetric()]) {
-                XCUIApplication().launch()
+                app.launch()
             }
         }
     }

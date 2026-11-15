@@ -44,6 +44,7 @@ struct PlexClient: MediaServerClient {
     let baseURL: URL
     let token: String?
     let caller: PlexCaller
+    var session: URLSession = .shared
 
     @MainActor
     init?(record: MediaServerRecord) {
@@ -79,7 +80,7 @@ struct PlexClient: MediaServerClient {
         request.timeoutInterval = timeout
         for (name, value) in caller.headers { request.setValue(value, forHTTPHeaderField: name) }
         if let token { request.setValue(token, forHTTPHeaderField: "X-Plex-Token") }
-        let (data, _) = try await ServerHTTP.data(request)
+        let (data, _) = try await ServerHTTP.data(request, session: session)
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let container = object["MediaContainer"] as? [String: Any]
         else { throw MediaServerError.notAServer(.plex) }
@@ -163,9 +164,21 @@ struct PlexClient: MediaServerClient {
         var query: [(String, String)] = []
         if let type = item.details["type"] { query += [("type", type), ("sort", "titleSort")] }
         if let kind = item.details["playlists"] { query.append(("playlistType", kind)) }
-        let found = try await container(path, query, timeout: 40)
-        let showsEpisodesByShow = path == "/library/onDeck"
-        return Self.entries(found).compactMap { self.item(from: $0, namingShow: showsEpisodesByShow) }
+        var items: [ServerItem] = []
+        var offset = 0
+        var seen = Set<String>()
+        while true {
+            try Task.checkCancellation()
+            let found = try await container(path, query + [("X-Plex-Container-Start", String(offset)), ("X-Plex-Container-Size", "200")], timeout: 40)
+            let entries = Self.entries(found)
+            let page = entries.compactMap { self.item(from: $0, namingShow: path == "/library/onDeck") }
+            let fresh = page.filter { seen.insert($0.id).inserted }
+            items += fresh
+            offset += entries.count
+            let total = Self.number(found["totalSize"]).map(Int.init)
+            if entries.isEmpty || fresh.isEmpty || total.map({ offset >= $0 }) ?? (entries.count < 200) { break }
+        }
+        return items
     }
 
     private func item(from entry: [String: Any], namingShow: Bool) -> ServerItem? {
@@ -173,6 +186,9 @@ struct PlexClient: MediaServerClient {
         let type = Self.text(entry["type"]) ?? ""
         var item = ServerItem(id: "plex:\(ratingKey)", kind: .folder, title: title)
         item.details["ratingKey"] = ratingKey
+        if let guid = Self.text(entry["guid"]), ["plex://", "imdb://", "tmdb://", "tvdb://"].contains(where: { guid.hasPrefix($0) }) {
+            item.details["guid"] = guid
+        }
         item.overview = Self.text(entry["summary"])
         item.year = Self.number(entry["year"]).map { Int($0) }
         item.rating = Self.text(entry["contentRating"])
@@ -208,6 +224,7 @@ struct PlexClient: MediaServerClient {
             item.imageURL = picture(Self.text(entry["thumb"]))
         case "season":
             item.kind = .season
+            item.details["plexSeasonIndex"] = Self.text(entry["index"])
             item.details["path"] = "/library/metadata/\(ratingKey)/children"
             item.isUnwatched = (Self.number(entry["viewedLeafCount"]) ?? 0) < (Self.number(entry["leafCount"]) ?? 0)
             item.imageURL = picture(Self.text(entry["thumb"]) ?? Self.text(entry["parentThumb"]))

@@ -72,6 +72,9 @@ extension MenuView {
                 )
             }
         }
+        if activeRootItemID == "movies" || activeRootItemID == "tv_shows" {
+            items += plexLibrarySubmenuItems()
+        }
         if activeRootItemID == "tv_shows" {
             // The shows found among the movie files, under iTunes Top TV Episodes.
             items += tvShowsSubmenuItems()

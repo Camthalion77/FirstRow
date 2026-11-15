@@ -206,6 +206,9 @@ extension MenuView {
                     showsBlueDot: item.isUnwatched,
                 ))
             }
+            if isInSectionOfMovieFiles {
+                items.append(plainMenuListItem(id: "server_refresh", title: L("Refresh"), showsTopDivider: true))
+            }
             if case .top = state.page {
                 items.append(plainMenuListItem(id: "server_remove", title: L("Remove This Server"), showsTopDivider: true))
             }
@@ -316,6 +319,8 @@ extension MenuView {
     }
 
     func navigateUpInServerMenu() {
+        serverPageTask?.cancel()
+        serverVideoLoadTask?.cancel()
         servers.requestID &+= 1
         guard servers.pages.count > 1 else {
             exitServersToSources()
@@ -364,6 +369,7 @@ extension MenuView {
     }
 
     private func exitServersToSources() {
+        serverPageTask?.cancel()
         transitionMenuForFolderSwap(useOverlayFade: true) {
             self.isInThirdMenu = false
             self.thirdMenuMode = .none
@@ -401,12 +407,13 @@ extension MenuView {
     // MARK: - Loading
 
     private func loadCurrentServerPage(quietly: Bool = false) {
+        serverPageTask?.cancel()
         guard let state = currentServerPage else { return }
         let requestID = servers.requestID &+ 1
         servers.requestID = requestID
         let pageIndex = servers.pages.count - 1
         func finish(_ items: [ServerItem]?) {
-            guard servers.requestID == requestID, servers.pages.indices.contains(pageIndex) else { return }
+            guard !Task.isCancelled, thirdMenuMode == .server, servers.requestID == requestID, servers.pages.indices.contains(pageIndex) else { return }
             let rows = serverMenuListItems()
             let selectedID = quietly && rows.indices.contains(selectedThirdIndex) ? rows[selectedThirdIndex].id : nil
             if let items { servers.pages[pageIndex].items = items }
@@ -428,12 +435,12 @@ extension MenuView {
                 return
             }
             servers.isLoading = !quietly
-            Task { @MainActor in
+            serverPageTask = Task { @MainActor in
                 do {
                     let items = try await work(client)
                     finish(items)
                 } catch {
-                    guard self.servers.requestID == requestID else { return }
+                    guard !Task.isCancelled, self.servers.requestID == requestID else { return }
                     // A folder that wants a name and password asks for them here.
                     let wantsSignIn = (error as? MediaServerError).map { if case .signInNeeded = $0 { true } else { false } } ?? false
                     let record = MediaServerStore.shared.server(withID: id)
@@ -457,13 +464,25 @@ extension MenuView {
         case let .top(id):
             load(id) { try await $0.top() }
         case let .list(id, item):
-            load(id) { try await $0.children(of: item) }
+            if PlexLibraryIndex.hasCombinedSources(item) {
+                let records = MediaServerStore.shared.servers
+                let caller = PlexCaller.current
+                load(id) { _ in
+                    try await PlexLibraryIndex.children(of: item) { serverID in
+                        guard let record = records.first(where: { $0.id == serverID }), let url = URL(string: record.address) else { return nil }
+                        return PlexClient(baseURL: url, token: record.token, caller: caller)
+                    }
+                }
+            } else {
+                load(id) { try await $0.children(of: item) }
+            }
         }
     }
 
     /// Reloads what is showing after a movie, so what has been watched and where it stopped
     /// catch up.
     func refreshServerPageAfterPlayback() {
+        if activeRootItemID == "movies" || activeRootItemID == "tv_shows" { refreshPlexLibraries() }
         if thirdMenuMode == .server, let page = currentServerPage, page.page != .add, page.page != .plex {
             loadCurrentServerPage(quietly: true)
         }
@@ -531,6 +550,7 @@ extension MenuView {
                 playLimitSoundOnceForCurrentHold()
             }
         case let .top(serverID), let .list(serverID, _):
+            if id == "server_refresh" { showServerMessage(); loadCurrentServerPage(quietly: true); return }
             if id == "server_remove" {
                 removeServer(serverID)
                 return
@@ -539,7 +559,7 @@ extension MenuView {
                 if id == "server_error" { loadCurrentServerPage() } else { playLimitSoundOnceForCurrentHold() }
                 return
             }
-            openServerItem(state.items[index], in: state.items, serverID: serverID)
+            openServerItem(state.items[index], in: state.items, serverID: state.items[index].details["plexIntegratedServerID"] ?? serverID)
         }
     }
 
@@ -825,13 +845,16 @@ extension MenuView {
     func playServerVideo(_ item: ServerItem, serverID: String) {
         guard !isMovieTransitioning, !isMoviePlaybackVisible, !isStartingServerPlayback, let client = serverClient(withID: serverID) else { return }
         isStartingServerPlayback = true
+        let root = activeRootItemID
+        let pageRequest = servers.requestID
         resetScreenSaverIdleTimer()
-        Task { @MainActor in
+        serverVideoLoadTask = Task { @MainActor in
             defer { self.isStartingServerPlayback = false }
             let video: ServerVideo
             do {
                 video = try await client.video(for: item)
             } catch {
+                guard !Task.isCancelled, self.activeRootItemID == root, self.servers.requestID == pageRequest else { return }
                 self.playSound(named: "Limit")
                 let unreachable = (error as? MediaServerError).map { if case .unreachable = $0 { true } else { false } } ?? false
                 self.presentFullscreenScene(key: self.featureErrorFullscreenKey, payload: [
@@ -840,7 +863,7 @@ extension MenuView {
                 ])
                 return
             }
-            guard self.thirdMenuMode == .server, !self.isMovieTransitioning, !self.isMoviePlaybackVisible else { return }
+            guard !Task.isCancelled, self.activeRootItemID == root, self.servers.requestID == pageRequest, (self.thirdMenuMode == .server || self.selectedPlexLibraryEntry?.item == item), !self.isMovieTransitioning, !self.isMoviePlaybackVisible else { return }
             self.playSound(named: "Selection")
             self.serverVideoSession = ServerPlaybackSession(serverID: serverID, item: item, video: video)
             // The resume prompt reads these, as it does for a movie closed part way through.
@@ -935,6 +958,7 @@ extension MenuView {
 
     /// The item under the selection on the current page.
     var selectedServerItem: ServerItem? {
+        if let entry = selectedPlexLibraryEntry { return entry.item }
         guard thirdMenuMode == .server, let state = currentServerPage else { return nil }
         let rows = serverMenuListItems()
         guard rows.indices.contains(selectedThirdIndex), let index = serverItemIndex(forRowID: rows[selectedThirdIndex].id),
@@ -952,20 +976,20 @@ extension MenuView {
             clearServerPreview()
             return
         }
-        guard servers.previewItemID != item.id else { return }
-        servers.previewItemID = item.id
+        guard servers.previewItemID != item.imageURL?.absoluteString else { return }
+        servers.previewItemID = url.absoluteString
         servers.previewImage = nil
         Task { @MainActor in
             let image = await self.loadJellyfinImage(url)
-            guard self.servers.previewItemID == item.id else { return }
+            guard self.servers.previewItemID == url.absoluteString else { return }
             self.servers.previewImage = image
         }
     }
 
     func serverGapContentItems(icon: (Double, Animation?) -> GapItemSpec, pass: RenderPass, memo: inout GapContentMemo) -> [GapItemSpec] {
         let item = selectedServerItem
-        let image = (item?.id == servers.previewItemID) ? servers.previewImage : nil
-        let key = image == nil ? "none" : (item?.id ?? "none")
+        let image = (item?.imageURL?.absoluteString == servers.previewItemID) ? servers.previewImage : nil
+        let key = image == nil ? "none" : (item?.imageURL?.absoluteString ?? "none")
         let animation = pass.animation(.easeInOut(duration: 0.22), when: memo.serverPreviewKey != nil && memo.serverPreviewKey != key)
         memo.serverPreviewKey = key
         var items = [icon(image == nil ? 1 : 0, animation)]
@@ -991,7 +1015,7 @@ extension MenuView {
                 baseIconSize: iconSize,
                 offsetX: isSquare ? musicGapPreviewHorizontalOffset - 56 : movieGapPreviewHorizontalOffset,
                 offsetY: isSquare ? gapContentVerticalOffset - 8 : gapContentVerticalOffset + 8,
-                identity: "server:\(item.id)",
+                identity: "server:\(item.imageURL?.absoluteString ?? item.id)",
                 transitionDelay: item.isVideo || item.kind == .show ? 3 : 0,
                 animatesTransition: item.isVideo || item.kind == .show,
             )),
@@ -1000,5 +1024,65 @@ extension MenuView {
             fade: .easeInOut(duration: 0.22),
         ))
         return items
+    }
+}
+
+
+extension MenuView {
+    var selectedPlexLibraryEntry: PlexLibraryEntry? {
+        guard isInSubmenu, !isInThirdMenu, activeRootItemID == "movies" || activeRootItemID == "tv_shows" else { return nil }
+        let rows = currentSubmenuItems()
+        guard rows.indices.contains(selectedSubIndex) else { return nil }
+        return plexLibraryEntries.first { $0.id == rows[selectedSubIndex].id }
+    }
+
+    func refreshPlexLibraries() {
+        plexLibraryTask?.cancel()
+        plexLibraryRequestID &+= 1
+        let request = plexLibraryRequestID
+        let records = MediaServerStore.shared.servers
+        let caller = PlexCaller.current
+        plexLibraryIsLoading = records.contains { $0.kind == .plex }
+        plexLibraryTask = Task { @MainActor in
+            let result = await PlexLibraryIndex.load(servers: records) { record in
+                guard let url = URL(string: record.address) else { return nil }
+                return PlexClient(baseURL: url, token: record.token, caller: caller)
+            }
+            guard !Task.isCancelled, self.plexLibraryRequestID == request else { return }
+            let rows = self.currentSubmenuItems()
+            let selectedID = rows.indices.contains(self.selectedSubIndex) ? rows[self.selectedSubIndex].id : nil
+            self.plexLibraryEntries = result.entries
+            self.plexLibraryFailures = result.failures
+            self.plexLibraryIsLoading = false
+            let updated = self.currentSubmenuItems()
+            if let selectedID, let index = updated.firstIndex(where: { $0.id == selectedID }) { self.selectedSubIndex = index }
+            else { self.selectedSubIndex = min(self.selectedSubIndex, max(0, updated.count - 1)) }
+            self.refreshDetailPreviewForCurrentContext()
+        }
+    }
+
+    func plexLibrarySubmenuItems() -> [SubmenuItemConfig] {
+        let kind: ServerItem.Kind = activeRootItemID == "movies" ? .movie : .show
+        var rows = plexLibraryEntries.filter { $0.item.kind == kind }.map {
+            SubmenuItemConfig(id: $0.id, title: $0.item.title, leadsToMenu: $0.item.opens,
+                              trailingText: [$0.item.year.map(String.init), $0.sourceTitle].compactMap { $0 }.joined(separator: " · "), showsBlueDot: $0.item.isUnwatched)
+        }
+        if MediaServerStore.shared.servers.contains(where: { $0.kind == .plex }) {
+            let title = plexLibraryIsLoading ? L("Loading...") : plexLibraryFailures > 0 ? L("Can't Reach the Server") + " · " + L("Look Again") : L("Refresh")
+            rows.append(SubmenuItemConfig(id: "plex_library_refresh", title: title, showsTopDivider: true))
+        }
+        return rows
+    }
+
+    func triggerPlexLibraryItem(_ row: SubmenuItemConfig) -> Bool {
+        if row.id == "plex_library_refresh" { refreshPlexLibraries(); return true }
+        guard let entry = plexLibraryEntries.first(where: { $0.id == row.id }) else { return false }
+        if entry.item.kind == .show {
+            playSound(named: "Selection")
+            enterServers(pages: [ServerPageState(page: .list(serverID: entry.serverID, entry.item))])
+        } else {
+            playServerVideo(entry.item, serverID: entry.serverID)
+        }
+        return true
     }
 }

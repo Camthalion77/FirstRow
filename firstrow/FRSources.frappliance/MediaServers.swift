@@ -237,12 +237,13 @@ final class MediaServerStore {
 /// Fetching from servers over HTTP.
 enum ServerHTTP {
     /// The answer to a request, or an error a person can be shown.
-    static func data(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    static func data(_ request: URLRequest, session: URLSession = .shared) async throws -> (Data, HTTPURLResponse) {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await session.data(for: request)
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw MediaServerError.unreachable
         }
         guard let http = response as? HTTPURLResponse else { throw MediaServerError.unreachable }
@@ -270,5 +271,126 @@ enum ServerHTTP {
         var urls = [URL(string: "http://\(text):\(port)")]
         if let securePort { urls.append(URL(string: "https://\(text):\(securePort)")) }
         return urls.compactMap { $0 }
+    }
+}
+
+
+/// Source identity is retained even when identical Plex metadata is available elsewhere.
+struct PlexLibraryEntry: Equatable, Sendable {
+    var serverID: String
+    var libraryID: String
+    var sourceTitle: String
+    var item: ServerItem
+    var id: String { "plex-library|" + serverID + "|" + libraryID + "|" + item.id }
+}
+
+enum PlexLibraryIndex {
+    /// A failed library never prevents another library or server from appearing.
+    static func load(servers: [MediaServerRecord],
+                     client: @escaping @Sendable (MediaServerRecord) -> (any MediaServerClient)?) async -> (entries: [PlexLibraryEntry], failures: Int) {
+        await withTaskGroup(of: ([PlexLibraryEntry], Int).self) { group in
+            for server in servers where server.kind == .plex {
+                group.addTask {
+                    guard !Task.isCancelled, let api = client(server) else { return ([], 0) }
+                    do {
+                        let libraries = try await api.top()
+                        var entries: [PlexLibraryEntry] = []
+                        var failures = 0
+                        for library in libraries where library.details["type"] == "1" || library.details["type"] == "2" {
+                            try Task.checkCancellation()
+                            do {
+                                let items = try await api.children(of: library)
+                                entries += items.filter { $0.kind == .movie || $0.kind == .show }.map {
+                                    PlexLibraryEntry(serverID: server.id, libraryID: library.id,
+                                                     sourceTitle: server.name + " · " + library.title, item: $0)
+                                }
+                            } catch { if Task.isCancelled { return ([], 0) }; failures += 1 }
+                        }
+                        return (entries, failures)
+                    } catch { return ([], Task.isCancelled ? 0 : 1) }
+                }
+            }
+            var entries: [PlexLibraryEntry] = []
+            var failures = 0
+            for await result in group { entries += result.0; failures += result.1 }
+            return (unique(entries), failures)
+        }
+    }
+
+    /// Minimal child references contain no credentials; each request uses the kept server.
+    private struct ChildSource: Codable {
+        var serverID: String
+        var itemID: String
+        var path: String
+        var type: String?
+    }
+    private static let sourcesKey = "plexIntegratedSources"
+
+    private static func sources(_ entry: PlexLibraryEntry) -> [ChildSource] {
+        if let text = entry.item.details[sourcesKey], let data = text.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([ChildSource].self, from: data) { return decoded }
+        guard let path = entry.item.details["path"] else { return [] }
+        return [ChildSource(serverID: entry.serverID, itemID: entry.item.id, path: path, type: entry.item.details["type"])]
+    }
+
+    static func unique(_ entries: [PlexLibraryEntry]) -> [PlexLibraryEntry] {
+        // Titles are not identities. Only a shared provider identifier proves a duplicate.
+        var result: [PlexLibraryEntry] = []
+        var positions: [String: Int] = [:]
+        for entry in entries.sorted(by: { $0.id < $1.id }) {
+            let key = entry.item.details["guid"].map { entry.item.kind.rawValue + "|" + $0 }
+                ?? (entry.serverID + "|" + entry.item.id)
+            if let position = positions[key] {
+                // A show can have different episodes in each library. Keep every child source
+                // behind the one show row instead of silently dropping the other seasons.
+                if entry.item.kind == .show || entry.item.kind == .season {
+                    let combined = sources(result[position]) + sources(entry)
+                    if let data = try? JSONEncoder().encode(combined), let text = String(data: data, encoding: .utf8) {
+                        result[position].item.details[sourcesKey] = text
+                    }
+                    result[position].item.isUnwatched = result[position].item.isUnwatched || entry.item.isUnwatched
+                }
+            } else {
+                positions[key] = result.count
+                result.append(entry)
+            }
+        }
+        return result.sorted { $0.item.title.localizedStandardCompare($1.item.title) == .orderedAscending }
+    }
+
+    static func hasCombinedSources(_ item: ServerItem) -> Bool { item.details[sourcesKey] != nil }
+
+    /// Only children of an already identified show/season are combined. Every playable
+    /// episode retains its own server, so playback and reporting reach the right account.
+    static func children(of item: ServerItem,
+                         client: @escaping @Sendable (String) -> (any MediaServerClient)?) async throws -> [ServerItem] {
+        guard let text = item.details[sourcesKey], let data = text.data(using: .utf8),
+              let sources = try? JSONDecoder().decode([ChildSource].self, from: data) else { return [] }
+        let result = await withTaskGroup(of: ([PlexLibraryEntry], Bool).self) { group in
+            for source in sources {
+                group.addTask {
+                    guard !Task.isCancelled, let api = client(source.serverID) else { return ([], false) }
+                    var parent = ServerItem(id: source.itemID, kind: .folder, title: item.title, details: ["path": source.path])
+                    parent.details["type"] = source.type
+                    guard let children = try? await api.children(of: parent) else { return ([], false) }
+                    return (children.map { child in
+                        var child = child
+                        child.details["plexIntegratedServerID"] = source.serverID
+                        // Season numbers are meaningful within this identified show only.
+                        if child.kind == .season, let season = child.details["plexSeasonIndex"] {
+                            child.details["guid"] = "integrated-season:" + season
+                        }
+                        return PlexLibraryEntry(serverID: source.serverID, libraryID: source.path, sourceTitle: "", item: child)
+                    }, true)
+                }
+            }
+            var entries: [PlexLibraryEntry] = []
+            var succeeded = false
+            for await page in group { entries += page.0; succeeded = succeeded || page.1 }
+            return (entries, succeeded)
+        }
+        try Task.checkCancellation()
+        guard result.1 else { throw MediaServerError.unreachable }
+        return unique(result.0).map(\.item)
     }
 }

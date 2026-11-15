@@ -469,6 +469,9 @@ extension MenuView {
         func icon(opacity: Double, animation: Animation?) -> GapItemSpec {
             GapItemSpec(key: "icon", kind: .icon(image: image, reflected: true), opacity: opacity, animation: animation)
         }
+        if thirdMenuMode == .server || selectedPlexLibraryEntry != nil {
+            return serverGapContentItems(icon: { icon(opacity: $0, animation: $1) }, pass: pass, memo: &memo)
+        }
         let fadeAlways = pass.transaction.disablesAnimations ? nil : Animation.easeInOut(duration: 0.22)
 
         // A server's song lists under Sources show what Music's do.

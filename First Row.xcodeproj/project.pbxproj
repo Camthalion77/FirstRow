@@ -89,8 +89,6 @@
 		7A73DEDA2F5776A20021C281 /* default.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DE5E2F5776A20021C281 /* default.mp3 */; };
 		7A73DEDB2F5776A20021C281 /* 200463981-1.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DE4F2F5776A20021C281 /* 200463981-1.jpg */; };
 		7A73DEDF2F5777260021C281 /* firstrowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A73DE822F5776A20021C281 /* firstrowTests.swift */; };
-		7A73DEE02F5778340021C281 /* First RowTests.xctest in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DEDD2F5777110021C281 /* First RowTests.xctest */; };
-		7A73DEE12F5778380021C281 /* First RowUITests.xctest in Resources */ = {isa = PBXBuildFile; fileRef = 7A73DEDE2F5777110021C281 /* First RowUITests.xctest */; };
 		AA000002AAAAAAAAAAAA0001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAAAAAAAAAA0001 /* AppDelegate.swift */; };
 		AA000002AAAAAAAAAAAA0002 /* ArrowAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAAAAAAAAAA0002 /* ArrowAppearance.swift */; };
 		AA000002AAAAAAAAAAAA0005 /* IOSAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAAAAAAAAAA0005 /* IOSAppDelegate.swift */; };
@@ -179,6 +177,7 @@
 		4ABB88D59DBE81E3373AA38F /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44824387D5560808DFFA3C50 /* Localization.swift */; };
 		C39525D2D9B144FC073D22A4 /* German.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B0A6A3F856F274CDA36A61 /* German.swift */; };
 		D0E1A2B3C4D5E6F7A8B9C004 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D0E1A2B3C4D5E6F7A8B9C001 /* InfoPlist.strings */; };
+		F001ABCD0000000000000001 /* PlexLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F001ABCD0000000000000002 /* PlexLibraryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -374,6 +373,7 @@
 		67B0A6A3F856F274CDA36A61 /* German.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = German.swift; sourceTree = "<group>"; };
 		D0E1A2B3C4D5E6F7A8B9C002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		D0E1A2B3C4D5E6F7A8B9C003 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		F001ABCD0000000000000002 /* PlexLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexLibraryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -670,6 +670,7 @@
 			isa = PBXGroup;
 			children = (
 				7A73DE822F5776A20021C281 /* firstrowTests.swift */,
+				F001ABCD0000000000000002 /* PlexLibraryTests.swift */,
 			);
 			path = firstrowTests;
 			sourceTree = "<group>";
@@ -897,7 +898,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7A73DEE02F5778340021C281 /* First RowTests.xctest in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -905,7 +905,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7A73DEE12F5778380021C281 /* First RowUITests.xctest in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1073,6 +1072,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7A73DEDF2F5777260021C281 /* firstrowTests.swift in Sources */,
+				F001ABCD0000000000000001 /* PlexLibraryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1444,7 +1444,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = firstrow;
+				TEST_TARGET_NAME = "First Row";
 			};
 			name = Debug;
 		};
@@ -1460,7 +1460,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = firstrow;
+				TEST_TARGET_NAME = "First Row";
 			};
 			name = Release;
 		};

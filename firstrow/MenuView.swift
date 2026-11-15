@@ -766,6 +766,13 @@ final class MenuView: ObservableObject {
     var isStartingJellyfinPlayback = false
     /// The other servers' pages, and the movie playing from one.
     @Published var servers = ServerMenuState()
+    @Published var plexLibraryEntries: [PlexLibraryEntry] = []
+    @Published var plexLibraryIsLoading = false
+    @Published var plexLibraryFailures = 0
+    var plexLibraryTask: Task<Void, Never>?
+    var serverPageTask: Task<Void, Never>?
+    var serverVideoLoadTask: Task<Void, Never>?
+    var plexLibraryRequestID = 0
     var serverVideoSession: ServerPlaybackSession?
     var serverProgressTimer: Timer?
     var isStartingServerPlayback = false

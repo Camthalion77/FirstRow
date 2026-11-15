@@ -199,6 +199,8 @@ extension MenuView {
         podcastEpisodesThirdMenuItems = []
         hasPresentedNoPodcastsErrorInCurrentSession = false
         activeRootItemID = chosenRootItem.id
+        if chosenRootItem.id == "movies" || chosenRootItem.id == "tv_shows" { refreshPlexLibraries() }
+        else { plexLibraryTask?.cancel() }
         if chosenRootItem.id == "tv_shows" {
             tvShowsSortMode = .show
             tvSubmenuRowsMemo = nil
@@ -254,6 +256,8 @@ extension MenuView {
     }
 
     func returnToRootMenu(playExitSound: Bool = true) {
+        plexLibraryTask?.cancel()
+        serverVideoLoadTask?.cancel()
         guard isInSubmenu || isEnteringSubmenu else { return }
         guard !isReturningToRoot else { return }
         let submenuExitFadeDuration = 0.18
@@ -380,6 +384,7 @@ extension MenuView {
             selectedSubIndex = clampedSubIndex
         }
         let item = submenuItems[clampedSubIndex]
+        if triggerPlexLibraryItem(item) { return }
         if activeRootItemID == "music", item.id == "music_now_playing" {
             guard hasActiveMusicPlaybackSession(), !isPodcastAudioNowPlaying else { return }
             clearMusicSongSwitchTransitionState()

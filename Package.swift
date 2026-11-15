@@ -53,5 +53,6 @@ let package = Package(
             ],
             swiftSettings: portableSettings,
         ),
+        .testTarget(name: "PlexIntegrationTests", dependencies: ["FirstRow"], path: "firstrowTests", exclude: ["firstrowTests.swift"], sources: ["PlexLibraryTests.swift"], swiftSettings: portableSettings),
     ],
 )

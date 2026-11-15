@@ -41,6 +41,10 @@ extension MenuView {
     }
 
     func refreshDetailPreviewForCurrentContext() {
+        if thirdMenuMode == .server || selectedPlexLibraryEntry != nil {
+            refreshServerPreviewForCurrentContext()
+            return
+        }
         switch activeRootItemID {
         case "movies":
             refreshMoviePreviewForCurrentContext()

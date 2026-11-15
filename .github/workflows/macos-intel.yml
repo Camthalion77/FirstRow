@@ -1,0 +1,98 @@
+name: macOS Intel
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-intel-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-package:
+    name: Build, test and package x86_64
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Intel runner and Tahoe SDK
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          sw_vers
+          xcodebuild -version
+          sdk_version=$(xcrun --sdk macosx --show-sdk-version)
+          echo "macOS SDK: $sdk_version"
+          test "${sdk_version%%.*}" -ge 26
+          mkdir -p dist logs
+
+      - name: Run Xcode unit and UI tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project "First Row.xcodeproj" \
+            -scheme "First Row" \
+            -configuration Debug \
+            -sdk macosx \
+            -destination 'platform=macOS,arch=x86_64' \
+            -derivedDataPath "$RUNNER_TEMP/FirstRow-tests" \
+            -resultBundlePath "$GITHUB_WORKSPACE/logs/FirstRow-tests.xcresult" \
+            -parallel-testing-enabled NO \
+            ARCHS=x86_64 ONLY_ACTIVE_ARCH=YES \
+            MACOSX_DEPLOYMENT_TARGET=15.2 \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            2>&1 | tee logs/xcodebuild-test.log
+
+      - name: Build Release application
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project "First Row.xcodeproj" \
+            -scheme "First Row" \
+            -configuration Release \
+            -sdk macosx \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/FirstRow-release" \
+            ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
+            MACOSX_DEPLOYMENT_TARGET=15.2 \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            2>&1 | tee logs/xcodebuild-release.log
+
+      - name: Verify and ZIP application
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/FirstRow-release/Build/Products/Release/First Row.app"
+          binary="$app/Contents/MacOS/First Row"
+          test -d "$app"
+          test "$(lipo -archs "$binary")" = x86_64
+          codesign --verify --deep --strict --verbose=2 "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" dist/FirstRow-macOS-x86_64.zip
+          unzip -t dist/FirstRow-macOS-x86_64.zip
+          shasum -a 256 dist/FirstRow-macOS-x86_64.zip > dist/FirstRow-macOS-x86_64.zip.sha256
+
+      - name: Upload Intel application
+        uses: actions/upload-artifact@v4
+        with:
+          name: FirstRow-macOS-x86_64
+          path: dist/FirstRow-macOS-x86_64.zip*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload Xcode diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FirstRow-macOS-x86_64-diagnostics
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 14

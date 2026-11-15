@@ -29,6 +29,29 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <Testables>
+         <TestableReference skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7AE49B512D1491FD0022CD0D"
+               BuildableName = "First RowTests.xctest"
+               BlueprintName = "First RowTests"
+               ReferencedContainer = "container:First Row.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7AE49B5B2D1491FD0022CD0D"
+               BuildableName = "First RowUITests.xctest"
+               BlueprintName = "First RowUITests"
+               ReferencedContainer = "container:First Row.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable key = "FIRSTROW_HARNESS" value = "1" isEnabled = "YES"/>
+      </EnvironmentVariables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

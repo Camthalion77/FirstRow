@@ -1448,7 +1448,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = firstrow;
+				TEST_TARGET_NAME = "First Row";
 			};
 			name = Debug;
 		};
@@ -1464,7 +1464,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = firstrow;
+				TEST_TARGET_NAME = "First Row";
 			};
 			name = Release;
 		};
